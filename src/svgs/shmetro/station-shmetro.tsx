@@ -4,6 +4,55 @@ import { useRootSelector } from '../../redux';
 import { forwardRef, memo, Ref, SVGProps, useEffect, useMemo, useRef, useState } from 'react';
 import { Translation } from '@railmapgen/rmg-translate';
 
+/**
+ * Typography layout parameters for a line-number interchange badge.
+ * Ported from kyuri-shmetro-line-id-block-generator (MIT), scaled to rmg's
+ * coordinate system (rect height 22 px).
+ *
+ * Scaling rules (2020 style):
+ *   - fontSize:       23 px = round(22 × 104/100)  → fills the block like the real badge
+ *   - rectWidth:      19 px (1-digit)  = round(22 × 86/100)  ← kyuri ratio 0.86
+ *                     23 px (2-digit)  = round(22 × 105/100)
+ *   - textX:          kyuri_x × (rectWidth / kyuri_rectWidth)
+ *                     single: × (20/86 ≈ 0.233) — kyuri x from {7.5, 14.9}
+ *                     double: × (23/105 ≈ 0.219) — kyuri x from {3.6, -3.3, 7.4, 0.7}
+ *   - textAnchor:     "start" (kyuri uses bbox left-corner positioning)
+ *   - letterSpacing:  kyuri_value × (23/104 ≈ 0.221)
+ */
+interface IntBoxNumberLayout {
+    rectWidth: number;
+    textX: number;
+    textAnchor?: 'start' | 'middle'; // default: inherit from parent ("middle")
+    fontSize?: number;
+    letterSpacing?: number;
+    textTransform?: string;
+}
+
+function getIntBoxNumberLayout(lineName: string, is2020: boolean): IntBoxNumberLayout {
+    if (!is2020) return { rectWidth: 20, textX: 10 };
+    const num = parseInt(lineName.match(/^(\d+)/)?.[1] ?? '0', 10);
+    const tens = Math.floor(num / 10);
+    const ones = num % 10;
+    // 2020 style — rect x=0, text uses start-anchor with kyuri scaled x
+    // double-digit (kyuri rect width 105 → rmg 23 px, scale 23/105 ≈ 0.219)
+    if (num === 11) return { rectWidth: 23, textX: 0.8, textAnchor: 'start', fontSize: 23, letterSpacing: -2.3 }; // kyuri x=3.6
+    if (tens === 1) return { rectWidth: 23, textX: -0.7, textAnchor: 'start', fontSize: 23, letterSpacing: -3.1 }; // kyuri x=-3.3
+    if (tens >= 2 && ones === 1)
+        return { rectWidth: 23, textX: 1.6, textAnchor: 'start', fontSize: 23, letterSpacing: -2.1 }; // kyuri x=7.4
+    if (tens >= 2)
+        return {
+            rectWidth: 23,
+            textX: 0.2,
+            textAnchor: 'start',
+            fontSize: 23,
+            letterSpacing: -1.2,
+            textTransform: 'scale(.98 1)',
+        }; // kyuri x=0.7
+    // single-digit (kyuri rect 86×100 → rmg 19×22 px, scale 19/86 ≈ 0.221)
+    if (num === 1) return { rectWidth: 19, textX: 1.7, textAnchor: 'start', fontSize: 23 }; // kyuri x=7.5
+    return { rectWidth: 19, textX: 3.3, textAnchor: 'start', fontSize: 23 }; // kyuri x=14.9
+}
+
 interface Props {
     stnId: string;
     stnState: -1 | 0 | 1;
@@ -47,6 +96,7 @@ const StationSHMetro = (props: Props) => {
     const dx = (direction === 'l' ? 6 : -6) + branchNameDX + bank * 30;
     const dy = (info_panel_type === 'sh2020' ? -20 : -6) + Math.abs(bank) * (info_panel_type === 'sh2020' ? 25 : 11);
     const dr = bank ? 0 : direction === 'l' ? -45 : 45;
+    const is2020 = info_panel_type === 'sh2020';
     return (
         <>
             <use
@@ -68,6 +118,7 @@ const StationSHMetro = (props: Props) => {
                     bank={bank}
                     oneLine={stnInfo.one_line}
                     intPadding={stnInfo.int_padding}
+                    is2020={is2020}
                 />
             </g>
             {stnState === 0 ? <CurrentStationText /> : undefined}
@@ -86,10 +137,12 @@ interface StationNameGElementProps {
     bank: -1 | 0 | 1;
     oneLine: boolean;
     intPadding: number;
+    /** When true, applies SHMetro 2020-style precision typography to line-number badges. */
+    is2020?: boolean;
 }
 
 const StationNameGElement = (props: StationNameGElementProps) => {
-    const { name, groups, stnState, direction, facility, bank, oneLine, intPadding } = props;
+    const { name, groups, stnState, direction, facility, bank, oneLine, intPadding, is2020 } = props;
 
     // legacy ref to get the exact station name width
     const stnNameEl = useRef<SVGGElement | null>(null);
@@ -122,6 +175,7 @@ const StationNameGElement = (props: StationNameGElementProps) => {
                         ref={intEl}
                         groups={groups}
                         direction={direction}
+                        is2020={is2020}
                         transform={`translate(${intDx * directionPolarity},-10.75)`}
                     />
                 </>
@@ -232,10 +286,10 @@ const CurrentStationText = () => {
 };
 
 const IntBoxGroup = forwardRef(function IntBoxGroup(
-    props: { groups: InterchangeGroup[]; direction: 'l' | 'r' } & SVGProps<SVGGElement>,
+    props: { groups: InterchangeGroup[]; direction: 'l' | 'r'; is2020?: boolean } & SVGProps<SVGGElement>,
     ref: Ref<SVGGElement>
 ) {
-    const { groups, direction, ...others } = props;
+    const { groups, direction, is2020, ...others } = props;
 
     // also known as non out-of-system transfers
     const boxInfos: ExtendedInterchangeInfo[] = [
@@ -253,9 +307,12 @@ const IntBoxGroup = forwardRef(function IntBoxGroup(
             {boxInfos.map((info, i) => {
                 const isLineNumber = Boolean(info.name[0].match(/^\w+(号)?线/));
                 const isMaglev = Boolean(info.name[0].match(/^磁(悬)*浮/));
+                // For 2020 style, double-digit line-number badges are 25 px wide instead of 20 px
+                const lineNumWidth = isLineNumber ? getIntBoxNumberLayout(info.name[0], is2020 ?? false).rectWidth : 0;
+                const boxWidth = isLineNumber ? lineNumWidth : isMaglev ? 20 : info.name[0].length * 14 + 12;
 
                 if (direction === 'r') {
-                    dx -= (isLineNumber || isMaglev ? 20 : info.name[0].length * 14 + 12) + (i === 0 ? 0 : 5);
+                    dx -= boxWidth + (i === 0 ? 0 : 5);
                 }
 
                 let el: JSX.Element;
@@ -268,7 +325,7 @@ const IntBoxGroup = forwardRef(function IntBoxGroup(
                 } else if (isLineNumber) {
                     el = (
                         <g transform={`translate(${dx},0)`} key={i}>
-                            <IntBoxNumber info={info} />
+                            <IntBoxNumber info={info} is2020={is2020} />
                         </g>
                     );
                 } else {
@@ -280,7 +337,7 @@ const IntBoxGroup = forwardRef(function IntBoxGroup(
                 }
 
                 if (direction === 'l') {
-                    dx += isLineNumber || isMaglev ? 20 + 5 : info.name[0].length * 14 + 12 + 5;
+                    dx += boxWidth + 5;
                 }
                 return el;
             })}
@@ -300,18 +357,37 @@ const IntBoxMaglev = memo(
 );
 
 const IntBoxNumber = memo(
-    function IntBoxNumber(props: { info: ExtendedInterchangeInfo }) {
+    function IntBoxNumber(props: { info: ExtendedInterchangeInfo; is2020?: boolean }) {
+        const { info, is2020 } = props;
+        // line starts with numbers
+        const lineName = info.name[0].match(/(\d*)\w+/)?.[0] ?? '';
+        const layout = getIntBoxNumberLayout(lineName, is2020 ?? false);
         return (
             <>
-                <use xlinkHref="#intbox_number" fill={props.info.theme?.[2]} />
-                <text x={10} className="rmg-name__zh" fill={props.info.theme?.[3]} dominantBaseline="central">
-                    {/* // line starts with numbers */}
-                    {props.info.name[0].match(/(\d*)\w+/)?.[0]}
+                {layout.textAnchor === 'start' ? (
+                    // 2020 style: rect always starts at x=0, width varies
+                    <rect x={0} y={-11} width={layout.rectWidth} height={22} fill={info.theme?.[2]} />
+                ) : (
+                    // Classic style (pre-2020): use shared def (x=0, width=20, y=-11)
+                    <use xlinkHref="#intbox_number" fill={info.theme?.[2]} />
+                )}
+                <text
+                    x={layout.textX}
+                    className="rmg-name__zh"
+                    fill={info.theme?.[3]}
+                    dominantBaseline="central"
+                    {...(layout.textAnchor !== undefined && { textAnchor: layout.textAnchor })}
+                    {...(layout.fontSize !== undefined && { fontSize: layout.fontSize })}
+                    {...(layout.letterSpacing !== undefined && { letterSpacing: layout.letterSpacing })}
+                    {...(layout.textTransform !== undefined && { transform: layout.textTransform })}
+                >
+                    {lineName}
                 </text>
             </>
         );
     },
-    (prevProps, nextProps) => JSON.stringify(prevProps.info) === JSON.stringify(nextProps.info)
+    (prevProps, nextProps) =>
+        JSON.stringify(prevProps.info) === JSON.stringify(nextProps.info) && prevProps.is2020 === nextProps.is2020
 );
 
 const IntBoxLetter = memo(
