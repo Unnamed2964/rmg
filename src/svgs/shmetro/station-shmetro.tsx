@@ -1,10 +1,30 @@
 import { ColourHex } from '@railmapgen/rmg-palette-resources';
 import { Translation } from '@railmapgen/rmg-translate';
 import { forwardRef, memo, Ref, SVGProps, useEffect, useMemo, useRef, useState } from 'react';
-import { ExtendedInterchangeInfo, Facilities, InterchangeGroup, PanelTypeShmetro } from '../../constants/constants';
+import {
+    ExtendedInterchangeInfo,
+    Facilities,
+    InterchangeGroup,
+    PanelTypeShmetro,
+    Services,
+} from '../../constants/constants';
 import { useRootSelector } from '../../redux';
 import { calculateColineStations } from '../methods/shmetro-coline';
 import { MultiSegmentCapsule } from './sh2024-capsule';
+
+// SVG filter per service level, mirroring the track line rendering in main-shmetro.tsx
+const SERVICE_FILTERS: Record<Services, string | undefined> = {
+    [Services.local]: undefined,
+    [Services.express]: 'url(#contrast-express)',
+    [Services.direct]: 'url(#contrast-direct)',
+};
+
+// Visual outer height (px) per service segment (h values passed to MultiSegmentCapsule).
+const SERVICE_SEG_HEIGHTS: Record<Services, number> = {
+    [Services.local]: 24,
+    [Services.express]: 25,
+    [Services.direct]: 25,
+};
 
 const INT_BOX_SIZE = {
     width: {
@@ -78,8 +98,8 @@ const StationSHMetro = (props: Props) => {
             ...(stnInfo.transfer.groups.at(2)?.lines || []),
         ].length;
 
-        if (stnInfo.services.length === 3) stationIconStyle = 'stn_sh_2020_direct';
-        else if (stnInfo.services.length === 2) stationIconStyle = 'stn_sh_2020_express';
+        if (stnInfo.services.length === 3) stationIconStyle = 'stn_sh_2024_direct';
+        else if (stnInfo.services.length === 2) stationIconStyle = 'stn_sh_2024_express';
         else if (osi_osysi_length > 1) {
             // 不管多少条站内换乘，只要有超过1个的出站换乘就是3个圆了
             stationIconStyle = 'stn_sh_2024_osysi3';
@@ -123,9 +143,23 @@ const StationSHMetro = (props: Props) => {
     // all other icons are shifted inward (iconBankX=0) regardless of parallelogram mode.
     const isOrdinaryStation = stationIconStyle === 'stn_sh_2020' || stationIconStyle === 'stn_sh';
     const iconBankX = is2020or2024 ? (loop_info.bank && isOrdinaryStation ? bank * 5 : 0) : 0;
+    const stnColor = stnState === -1 ? 'gray' : (color ?? 'var(--rmg-theme-colour)');
     return (
         <>
-            {stationIconStyle.endsWith('_coline') ? (
+            {stationIconStyle === 'stn_sh_2024_express' || stationIconStyle === 'stn_sh_2024_direct' ? (
+                // 大站车/直达车: 每段对应一个服务等级，无需 station-border filter
+                <g transform={`translate(${iconBankX},0)rotate(${bank * 90 * (is2020or2024 ? 1 : -1)})`}>
+                    <MultiSegmentCapsule
+                        r={5}
+                        yTop={-18}
+                        segments={stnInfo.services.map(svc => ({
+                            h: SERVICE_SEG_HEIGHTS[svc],
+                            color: stnColor,
+                            filter: stnState === -1 ? undefined : SERVICE_FILTERS[svc],
+                        }))}
+                    />
+                </g>
+            ) : stationIconStyle.endsWith('_coline') ? (
                 <g
                     transform={`translate(${iconBankX},0)rotate(${bank * 90 * (is2020or2024 ? 1 : -1)})`}
                     filter='url("#station-border")'

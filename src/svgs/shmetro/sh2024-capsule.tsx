@@ -4,6 +4,8 @@ export interface CapsuleSegment {
     /** Visual outer height (px) of this segment, including the 1px stroke on shared ends. */
     h: number;
     color: string;
+    /** Optional SVG filter URL to apply to this segment, e.g. 'url(#contrast-express)'. */
+    filter?: string;
 }
 
 /**
@@ -52,7 +54,7 @@ export const MultiSegmentCapsule = ({ r, yTop, segments }: { r: number; yTop: nu
                 ))}
             </defs>
             {segments.map((seg, i) => (
-                <g key={i} clipPath={`url(#${uid}s${i})`}>
+                <g key={i} clipPath={`url(#${uid}s${i})`} filter={seg.filter}>
                     <path fill="none" strokeWidth={2} stroke={seg.color} d={d} />
                 </g>
             ))}

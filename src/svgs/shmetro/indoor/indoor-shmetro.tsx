@@ -94,6 +94,22 @@ const DefsSHMetro = memo(function DefsSHMetro() {
                 <circle cy="1" r="3" fill="var(--rmg-white)" strokeWidth={2} />
             </g>
 
+            {/* Contrast filters for express/direct service lines. */}
+            <filter id="contrast-direct" filterUnits="userSpaceOnUse">
+                <feComponentTransfer>
+                    <feFuncR type="linear" slope={0.5} intercept={0.25} />
+                    <feFuncG type="linear" slope={0.5} intercept={0.25} />
+                    <feFuncB type="linear" slope={0.5} intercept={0.25} />
+                </feComponentTransfer>
+            </filter>
+            <filter id="contrast-express" filterUnits="userSpaceOnUse">
+                <feComponentTransfer>
+                    <feFuncR type="linear" slope={0.75} intercept={0.125} />
+                    <feFuncG type="linear" slope={0.75} intercept={0.125} />
+                    <feFuncB type="linear" slope={0.75} intercept={0.125} />
+                </feComponentTransfer>
+            </filter>
+
             {/* White outline filter for int_osysi */}
             <filter id="station-border" filterUnits="userSpaceOnUse" x="-30" y="-30" width="60" height="60">
                 <feMorphology operator="dilate" in="SourceAlpha" radius="0" result="e1" />
