@@ -91,6 +91,7 @@ const StationSHMetro = (props: Props) => {
 
     let stationIconStyle: string;
     const stationIconColor: { [pos: string]: string } = {};
+    let expressOrDirectHasOsysi = false;
     if (info_panel_type === PanelTypeShmetro.sh2024) {
         const int_length = stnInfo.transfer.groups.at(0)?.lines?.length ?? 0;
         const osi_osysi_length = [
@@ -98,9 +99,13 @@ const StationSHMetro = (props: Props) => {
             ...(stnInfo.transfer.groups.at(2)?.lines || []),
         ].length;
 
-        if (stnInfo.services.length === 3) stationIconStyle = 'stn_sh_2024_direct';
-        else if (stnInfo.services.length === 2) stationIconStyle = 'stn_sh_2024_express';
-        else if (osi_osysi_length > 1) {
+        if (stnInfo.services.length === 3) {
+            stationIconStyle = 'stn_sh_2024_direct';
+            expressOrDirectHasOsysi = osi_osysi_length > 0;
+        } else if (stnInfo.services.length === 2) {
+            stationIconStyle = 'stn_sh_2024_express';
+            expressOrDirectHasOsysi = osi_osysi_length > 0;
+        } else if (osi_osysi_length > 1) {
             // 不管多少条站内换乘，只要有超过1个的出站换乘就是3个圆了
             stationIconStyle = 'stn_sh_2024_osysi3';
             stationIconColor.stroke = stnState === -1 ? 'gray' : color ? color : 'var(--rmg-theme-colour)';
@@ -149,11 +154,20 @@ const StationSHMetro = (props: Props) => {
             {stationIconStyle === 'stn_sh_2024_express' || stationIconStyle === 'stn_sh_2024_direct' ? (
                 // 大站车/直达车: 每段对应一个服务等级，无需 station-border filter
                 <g transform={`translate(${iconBankX},0)rotate(${bank * 90 * (is2020or2024 ? 1 : -1)})`}>
+                    {expressOrDirectHasOsysi && (
+                        <>
+                            {/* indicator circle above the capsule body, same as coline hasOsysi */}
+                            <circle cy={-12} r={5} fill="var(--rmg-white)" stroke="none" />
+                            <circle cy={-12} r={5} fill="none" strokeWidth={2} stroke={stnColor} />
+                        </>
+                    )}
                     <MultiSegmentCapsule
                         r={5}
-                        yTop={-18}
-                        segments={stnInfo.services.map(svc => ({
-                            h: SERVICE_SEG_HEIGHTS[svc],
+                        yTop={expressOrDirectHasOsysi ? -6 : -18}
+                        segments={stnInfo.services.map((svc, i) => ({
+                            // When the indicator circle is shown above, yTop shifts +12px,
+                            // which is subtracted from the first segment to keep total visual height consistent.
+                            h: SERVICE_SEG_HEIGHTS[svc] - (expressOrDirectHasOsysi && i === 0 ? 12 : 0),
                             color: stnColor,
                             filter: stnState === -1 ? undefined : SERVICE_FILTERS[svc],
                         }))}
