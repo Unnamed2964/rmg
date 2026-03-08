@@ -164,10 +164,14 @@ const StationSHMetro = (props: Props) => {
                     <MultiSegmentCapsule
                         r={5}
                         yTop={expressOrDirectHasOsysi ? -6 : -18}
-                        segments={stnInfo.services.map((svc, i) => ({
-                            // When the indicator circle is shown above, yTop shifts +12px,
-                            // which is subtracted from the first segment to keep total visual height consistent.
-                            h: SERVICE_SEG_HEIGHTS[svc] - (expressOrDirectHasOsysi && i === 0 ? 12 : 0),
+                        segments={stnInfo.services.map((svc, i, arr) => ({
+                            // Multi-service layout: first segment +12, last segment -12.
+                            // When the OSI indicator circle is shown (yTop shifts +12), the first segment is further reduced by 12.
+                            h:
+                                SERVICE_SEG_HEIGHTS[svc] +
+                                (i === 0 && arr.length > 1 ? 13 : 0) -
+                                -(i === arr.length - 1 && arr.length > 1 ? 13 : 0) -
+                                -(expressOrDirectHasOsysi && i === 0 ? 12 : 0),
                             color: stnColor,
                             filter: stnState === -1 ? undefined : SERVICE_FILTERS[svc],
                         }))}
