@@ -273,10 +273,9 @@ export const _linePath = (
     let endAtTerminal = false;
     let startFromTerminal = false;
     if (stnIds.length > 0) {
-        if (stn_list[stnIds[stnIds.length - 1]].children.some(stnId => ['linestart', 'lineend'].includes(stnId))) {
+        if (stn_list[stnIds.at(-1) || 0].children.some(stnId => ['linestart', 'lineend'].includes(stnId))) {
             endAtTerminal = true;
-        }
-        if (stn_list[stnIds[0]].parents.some(stnId => ['linestart', 'lineend'].includes(stnId))) {
+        } else if (stn_list[stnIds.at(0) || 0].parents.some(stnId => ['linestart', 'lineend'].includes(stnId))) {
             startFromTerminal = true;
         }
     }
