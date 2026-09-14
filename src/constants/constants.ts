@@ -30,7 +30,6 @@ export const canvasConfig: { [s in RmgStyle]: CanvasType[] } = {
 };
 
 export enum SidePanelMode {
-    CLOSE = 'CLOSE',
     STATION = 'STATION',
     STYLE = 'STYLE',
     BRANCH = 'BRANCH',
@@ -116,7 +115,9 @@ export const FACILITIES = {
 };
 export type Facilities = keyof typeof FACILITIES;
 
-export type TEMP = 'temp';
+export const UNDER_CONSTRUCTION = 'under-construction';
+export const SERVICE_SUSPENDED = 'service-suspended';
+
 export interface StationInfo {
     title?: string;
     /**
@@ -174,7 +175,11 @@ export interface StationInfo {
      * Default to 20 in updateParam.
      */
     character_spacing: number;
-    underConstruction?: boolean | TEMP;
+    noServiceType?: typeof UNDER_CONSTRUCTION | typeof SERVICE_SUSPENDED;
+    /**
+     * A temporary sticker on the route map represented by a border.
+     */
+    noServiceWithBorder?: boolean;
 }
 
 export type StationDict = Record<string, StationInfo>;
@@ -358,3 +363,7 @@ export enum Events {
     APP_CLIP_VIEW_CLOSED = 'APP_CLIP_VIEW_CLOSED',
     APP_CLIP_VIEW_IMPORT = 'APP_CLIP_VIEW_IMPORT',
 }
+
+export const FALSE = false.toString();
+export const TRUE = true.toString();
+export const UNDEFINED = String(undefined);
