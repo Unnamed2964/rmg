@@ -1,5 +1,4 @@
-import { adjacencyList, criticalPathMethod, drawLine, getXShareMTR } from '../methods/share';
-import { getStnStateShmetro } from '../methods/shmetro-share';
+import { adjacencyList, criticalPathMethod, drawLine, getStnState, getXShareMTR } from '../methods/share';
 import StationSHMetro from './station-shmetro';
 import ColineSHMetro from './coline-shmetro';
 import { AtLeastOneOfPartial, PanelTypeShmetro, Services, StationDict } from '../../constants/constants';
@@ -98,7 +97,7 @@ const MainSHMetro = () => {
     );
 
     const stnStates = useMemo(
-        () => getStnStateShmetro(param.current_stn_idx, routes, param.stn_list, param.direction),
+        () => getStnState(param.current_stn_idx, routes, param.direction),
         [param.current_stn_idx, param.direction, routes.toString()]
     );
 
@@ -145,7 +144,6 @@ const MainSHMetro = () => {
                                 service,
                                 servicesPresent.length,
                                 stn_list,
-                                cur === 'main' && shouldUseExtraColoring(stns, stn_list, direction, stnStates),
                                 'rightangle',
                                 branchOffset
                             )
@@ -240,34 +238,6 @@ const SERVICES_DELTA: Record<Services, number> = {
 
 const TERMINAL_STUB = 30;
 
-type StnStates = { [stnId: string]: -1 | 0 | 1 };
-
-/**
- * Whether this main path needs extra-coloring terminal-cap logic (anti-direction stub).
- *
- * True when the travel-direction opposite end is a line terminus with state=1 — typical for
- * the parallel sibling branch when approaching a merge, and for loop coline coloring.
- */
-export const shouldUseExtraColoring = (
-    stnIds: string[],
-    stn_list: StationDict,
-    direction: 'l' | 'r',
-    stnStates: StnStates
-): boolean => {
-    // drawLine may push empty main/pass segments into the path list
-    if (stnIds.length === 0) {
-        return false;
-    }
-    if (direction === 'l') {
-        // anti-direction = path end (larger x)
-        const endId = stnIds[stnIds.length - 1];
-        return stn_list[endId].children.some(id => ['linestart', 'lineend'].includes(id)) && stnStates[endId] === 1;
-    }
-    // anti-direction = path start (smaller x)
-    const startId = stnIds[0];
-    return stn_list[startId].parents.some(id => ['linestart', 'lineend'].includes(id)) && stnStates[startId] === 1;
-};
-
 export const _linePath = (
     stnIds: string[],
     type: 'main' | 'pass',
@@ -276,59 +246,34 @@ export const _linePath = (
     direction: 'l' | 'r',
     services: Services,
     servicesMax: number,
-    stn_list: StationDict, // terminal detection for pass stubs and main color caps
-    /**
-     * Selects terminal-cap rule set for main theme-color paths.
-     * false: direction-side terminus only.
-     * true: every terminus end (parallel sibling branch / loop coline).
-     * Pass paths always pass false.
-     */
-    isExtraColoring: boolean,
+    stn_list: StationDict, // only used to determine startFromTerminal or endAtTerminal
     bend: 'rightangle' | 'diagonal' = 'rightangle',
-    branchOffset: number = 0 // k_2: offset from bifurcation point where vertical turn begins
+    branchOffset: number = 0 // offset from bifurcation point where vertical turn begins
 ) => {
     let [prevY, prevX] = [] as number[];
     const path: { [key: string]: number[] } = {};
 
     const servicesDelta = SERVICES_DELTA[services];
     const servicesPassDelta = servicesMax > 1 ? 50 : 0;
-    const colorStub = TERMINAL_STUB + servicesDelta;
 
+    // extra short line on either end
+    let e1 = TERMINAL_STUB;
     // check if path starts from or ends at the terminal
-    let endAtTerminal = false;
-    let startFromTerminal = false;
+    // and change e1 to 0 if it matches
     if (stnIds.length > 0) {
+        let startFromTerminal = false,
+            endAtTerminal = false;
         if (stn_list[stnIds[stnIds.length - 1]].children.some(stnId => ['linestart', 'lineend'].includes(stnId))) {
             endAtTerminal = true;
-        }
-        if (stn_list[stnIds[0]].parents.some(stnId => ['linestart', 'lineend'].includes(stnId))) {
+        } else if (stn_list[stnIds[0]].parents.some(stnId => ['linestart', 'lineend'].includes(stnId))) {
             startFromTerminal = true;
         }
+        e1 = startFromTerminal || endAtTerminal ? e1 : 0;
     }
-    // pass stubs: legacy OR (either end is terminus)
-    const e1 = startFromTerminal || endAtTerminal ? TERMINAL_STUB : 0;
 
-    let startCap = 0;
-    let endCap = 0;
-    if (type === 'main' && stnIds.length > 0) {
-        if (!isExtraColoring) {
-            // normal: only the travel-direction end
-            if (direction === 'l' && startFromTerminal) {
-                startCap = colorStub;
-            }
-            if (direction === 'r' && endAtTerminal) {
-                endCap = colorStub;
-            }
-        } else {
-            // extra coloring: stub on every terminus end
-            if (startFromTerminal) {
-                startCap = colorStub;
-            }
-            if (endAtTerminal) {
-                endCap = colorStub;
-            }
-        }
-    }
+    // main theme-color stub: legacy rule — if either end is terminus, extend the travel-direction side
+    const startCap = type === 'main' && direction === 'l' ? e1 + servicesDelta : 0;
+    const endCap = type === 'main' && direction === 'r' ? e1 + servicesDelta : 0;
 
     // diagonal use e2 to make soft line
     const e2 = 30;
@@ -366,10 +311,12 @@ export const _linePath = (
         // keys in path: start
         const [x, y] = path['start'];
         if (type === 'main') {
-            if (startCap === 0 && endCap === 0) {
-                return '';
+            // current at terminal(end) station, draw the litte main line
+            if (direction === 'l') {
+                return `M ${x - e1 - servicesDelta},${y} H ${x}`;
+            } else {
+                return `M ${x},${y} H ${x + e1 + servicesDelta}`;
             }
-            return `M ${x - startCap},${y} H ${x + endCap}`;
         } else {
             // type === 'pass'
             // current at terminal(start) station, draw the litte pass line
@@ -402,7 +349,6 @@ export const _linePath = (
         const [xm, ym] = path['end'];
 
         // turnX: vertical turn position, offset from bifurcation point towards branch
-        // Offset moves turnX in the opposite direction of train travel (towards branch)
         const branchOnRight = xBranch > xBifurcate;
         const branchDirection = branchOnRight ? 1 : -1;
         const turnX = xBifurcate + branchDirection * branchOffset;

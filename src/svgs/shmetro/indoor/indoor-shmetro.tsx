@@ -1,6 +1,5 @@
 import { memo, useMemo } from 'react';
-import { adjacencyList, criticalPathMethod, getXShareMTR } from '../../methods/share';
-import { getStnStateShmetro } from '../../methods/shmetro-share';
+import { adjacencyList, criticalPathMethod, getStnState, getXShareMTR } from '../../methods/share';
 import StationSHMetro from './station-shmetro';
 import { StationsSHMetro } from '../../methods/mtr';
 import { CanvasType, Services, StationDict } from '../../../constants/constants';
@@ -112,7 +111,7 @@ const IndoorSHMetro = () => {
     );
 
     const stnStates = useMemo(
-        () => getStnStateShmetro(param.current_stn_idx, routes, param.stn_list, param.direction),
+        () => getStnState(param.current_stn_idx, routes, param.direction),
         [param.current_stn_idx, param.direction, routes.toString()]
     );
 
