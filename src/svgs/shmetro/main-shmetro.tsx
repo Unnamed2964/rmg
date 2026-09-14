@@ -145,7 +145,9 @@ const MainSHMetro = () => {
                                 service,
                                 servicesPresent.length,
                                 stn_list,
-                                stnStates,
+                                cur === 'main'
+                                    ? getMainTerminalCaps(stns, stn_list, service, stnStates)
+                                    : { startCap: 0, endCap: 0 },
                                 'rightangle',
                                 branchOffset
                             )
@@ -232,6 +234,44 @@ const Line = (props: { paths: Paths; direction: 'l' | 'r' }) => {
     );
 };
 
+export type LinePathTerminalCaps = {
+    /** Extra length beyond the first station in `stnIds` (smaller x). */
+    startCap: number;
+    /** Extra length beyond the last station in `stnIds` (larger x). */
+    endCap: number;
+};
+
+const SERVICES_DELTA: Record<Services, number> = {
+    local: 0,
+    express: 20,
+    direct: 40,
+};
+
+const TERMINAL_STUB = 30;
+
+/** Main-path terminal stubs: only when the path end is a line terminus and that station is colored (state=1). */
+export const getMainTerminalCaps = (
+    stnIds: string[],
+    stn_list: StationDict,
+    services: Services,
+    stnStates: { [stnId: string]: -1 | 0 | 1 }
+): LinePathTerminalCaps => {
+    if (stnIds.length === 0) {
+        return { startCap: 0, endCap: 0 };
+    }
+
+    const servicesDelta = SERVICES_DELTA[services];
+    const startId = stnIds[0];
+    const endId = stnIds[stnIds.length - 1];
+    const startFromTerminal = stn_list[startId].parents.some(stnId => ['linestart', 'lineend'].includes(stnId));
+    const endAtTerminal = stn_list[endId].children.some(stnId => ['linestart', 'lineend'].includes(stnId));
+
+    return {
+        startCap: startFromTerminal && stnStates[startId] === 1 ? TERMINAL_STUB + servicesDelta : 0,
+        endCap: endAtTerminal && stnStates[endId] === 1 ? TERMINAL_STUB + servicesDelta : 0,
+    };
+};
+
 export const _linePath = (
     stnIds: string[],
     type: 'main' | 'pass',
@@ -240,37 +280,31 @@ export const _linePath = (
     direction: 'l' | 'r',
     services: Services,
     servicesMax: number,
-    stn_list: StationDict, // only used to determine startFromTerminal or endAtTerminal
-    stnStates?: { [stnId: string]: -1 | 0 | 1 }, // when provided, terminal caps on main paths are only drawn for state=1 stations
+    stn_list: StationDict, // only used to determine startFromTerminal or endAtTerminal for pass / single-station stubs
+    caps: LinePathTerminalCaps,
     bend: 'rightangle' | 'diagonal' = 'rightangle',
     branchOffset: number = 0 // k_2: offset from bifurcation point where vertical turn begins
 ) => {
     let [prevY, prevX] = [] as number[];
     const path: { [key: string]: number[] } = {};
 
-    const servicesDelta = {
-        local: 0,
-        express: 20,
-        direct: 40,
-    }[services]; // TODO: enum Services could be a better idea?
+    const servicesDelta = SERVICES_DELTA[services];
     const servicesPassDelta = servicesMax > 1 ? 50 : 0;
+    const { startCap, endCap } = caps;
 
     // check if path starts from or ends at the terminal
     let endAtTerminal = false;
     let startFromTerminal = false;
     if (stnIds.length > 0) {
-        if (stn_list[stnIds.at(-1) || 0].children.some(stnId => ['linestart', 'lineend'].includes(stnId))) {
+        if (stn_list[stnIds[stnIds.length - 1]].children.some(stnId => ['linestart', 'lineend'].includes(stnId))) {
             endAtTerminal = true;
         }
-        if (stn_list[stnIds.at(0) || 0].parents.some(stnId => ['linestart', 'lineend'].includes(stnId))) {
+        if (stn_list[stnIds[0]].parents.some(stnId => ['linestart', 'lineend'].includes(stnId))) {
             startFromTerminal = true;
         }
     }
-    // extra short line on either end (only at terminals)
-    const e1 = startFromTerminal || endAtTerminal ? 30 : 0;
-    // main-path terminal caps: only drawn when the terminal station is truly colored (state=1)
-    const startCap = startFromTerminal && stnStates?.[stnIds[0]] === 1 ? e1 + servicesDelta : 0;
-    const endCap = endAtTerminal && stnStates?.[stnIds[stnIds.length - 1]] === 1 ? e1 + servicesDelta : 0;
+    // extra short line on either end (only at terminals); used by pass / single-station stubs
+    const e1 = startFromTerminal || endAtTerminal ? TERMINAL_STUB : 0;
 
     // diagonal use e2 to make soft line
     const e2 = 30;

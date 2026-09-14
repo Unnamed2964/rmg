@@ -3,7 +3,7 @@ import { drawLine } from '../methods/share';
 import { calculateColine, calculateColineStations } from '../methods/shmetro-coline';
 import { AtLeastOneOfPartial, ColineColours, Services } from '../../constants/constants';
 import { useRootSelector } from '../../redux';
-import { _linePath, StationGroupProps } from './main-shmetro';
+import { _linePath, getMainTerminalCaps, StationGroupProps } from './main-shmetro';
 import StationSHMetro from './station-shmetro';
 
 interface Props {
@@ -94,7 +94,9 @@ export const ColineSHMetro = (props: Props) => {
                                 service,
                                 servicesPresent.length,
                                 stn_list,
-                                undefined,
+                                cur === 'main'
+                                    ? getMainTerminalCaps(colineStn.linePath, stn_list, service, stnStates)
+                                    : { startCap: 0, endCap: 0 },
                                 'diagonal'
                             ),
                             colors: colineStn.colors,
