@@ -257,8 +257,8 @@ export const _linePath = (
     stn_list: StationDict, // terminal detection for pass stubs and main color caps
     /**
      * false: direction-side terminus only (refined legacy).
-     * true: every terminus end (parallel sibling / loop coline).
-     * Pass paths always pass false.
+     * true: every terminus end (parallel sibling branch).
+     * Pass paths and coline paths pass false.
      */
     isExtraColoring: boolean = false,
     bend: 'rightangle' | 'diagonal' = 'rightangle'
