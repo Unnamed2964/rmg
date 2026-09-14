@@ -61,7 +61,7 @@ export default function DesignSection() {
         info_panel_type,
         stn_list,
         loop,
-        branch_info: { distance_factor: branchDistanceFactor } = { distance_factor: 1 },
+        branch_info: { distance_factor: branchDistanceFactor },
     } = useRootSelector(state => state.param);
 
     const lineServices = Math.max(...Object.values(stn_list).map(s => s.services.length));

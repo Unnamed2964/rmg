@@ -2,7 +2,7 @@ import { adjacencyList, criticalPathMethod, drawLine, getXShareMTR } from '../me
 import { getStnStateShmetro } from '../methods/shmetro-share';
 import StationSHMetro from './station-shmetro';
 import ColineSHMetro from './coline-shmetro';
-import { AtLeastOneOfPartial, PanelTypeShmetro, Services, StationDict, StationInfo } from '../../constants/constants';
+import { AtLeastOneOfPartial, PanelTypeShmetro, Services, StationDict } from '../../constants/constants';
 import { useRootSelector } from '../../redux';
 import { useMemo } from 'react';
 
@@ -13,15 +13,6 @@ interface servicesPath {
 }
 
 type Paths = AtLeastOneOfPartial<Record<Services, servicesPath>>;
-
-/** Callback for SHMetro 2020: adds weight at merge points. */
-const createSh2020W =
-    (mapper: (_: StationInfo) => string[], k1: number) =>
-    (stnList: { [stnId: string]: StationInfo }, stnId: string): number => {
-        const stn = stnList[stnId];
-        if (!stn) return 0;
-        return mapper(stn).length > 1 ? k1 - 1 : 0;
-    };
 
 const MainSHMetro = () => {
     const { routes, branches, depsStr: deps } = useRootSelector(store => store.helper);
@@ -40,8 +31,12 @@ const MainSHMetro = () => {
     const adjMat = useMemo(() => {
         return adjacencyList(
             param.stn_list,
-            info_panel_type === PanelTypeShmetro.sh2020 ? createSh2020W(_ => _.parents, distance_factor) : () => 0,
-            info_panel_type === PanelTypeShmetro.sh2020 ? createSh2020W(_ => _.children, distance_factor) : () => 0
+            info_panel_type === PanelTypeShmetro.sh2020
+                ? (stnList, stnId) => (stnList[stnId].parents.length > 1 ? distance_factor - 1 : 0)
+                : () => 0,
+            info_panel_type === PanelTypeShmetro.sh2020
+                ? (stnList, stnId) => (stnList[stnId].children.length > 1 ? distance_factor - 1 : 0)
+                : () => 0
         );
     }, [JSON.stringify(param.stn_list), info_panel_type, distance_factor]);
 
@@ -274,8 +269,8 @@ export const _linePath = (
     // extra short line on either end (only at terminals)
     const e1 = startFromTerminal || endAtTerminal ? 30 : 0;
     // main-path terminal caps: only drawn when the terminal station is truly colored (state=1)
-    const startCap = startFromTerminal && stnStates?.[stnIds.at(0) ?? ''] === 1 ? e1 + servicesDelta : 0;
-    const endCap = endAtTerminal && stnStates?.[stnIds.at(-1) ?? ''] === 1 ? e1 + servicesDelta : 0;
+    const startCap = startFromTerminal && stnStates?.[stnIds[0]] === 1 ? e1 + servicesDelta : 0;
+    const endCap = endAtTerminal && stnStates?.[stnIds[stnIds.length - 1]] === 1 ? e1 + servicesDelta : 0;
 
     // diagonal use e2 to make soft line
     const e2 = 30;

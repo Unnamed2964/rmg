@@ -2,15 +2,10 @@ import { StationDict } from '../../constants/constants';
 import { getStnState } from './share';
 
 /**
- * Compute stations on parallel branch that should be additionally colored in such as
- * SHMetro railmap, which are the stations between the split point and merge point on
- * the parallel branch.
- * @param currentId ID of the current station
- * @param routes All possible routes through the line graph
- * @param stnList Dictionary of station information
- * @returns Set of station IDs on the parallel branch that should be additionally colored
+ * Stations between the split and merge points on the parallel sibling branch
+ * that should be additionally colored on the SHMetro railmap.
  */
-export const _getParallelBranchStations = (
+const getParallelBranchStations = (
     currentId: string,
     routes: string[][],
     stnList: StationDict,
@@ -26,7 +21,7 @@ export const _getParallelBranchStations = (
 
     let splitId = '';
     for (let i = currentIdx - 1; i >= 0; i--) {
-        if (stnList[currentRoute[i]]?.children.length > 1) {
+        if (stnList[currentRoute[i]].children.length > 1) {
             splitId = currentRoute[i];
             break;
         }
@@ -34,7 +29,7 @@ export const _getParallelBranchStations = (
 
     let mergeId = '';
     for (let i = currentIdx + 1; i < currentRoute.length; i++) {
-        if (stnList[currentRoute[i]]?.parents.length > 1) {
+        if (stnList[currentRoute[i]].parents.length > 1) {
             mergeId = currentRoute[i];
             break;
         }
@@ -70,7 +65,7 @@ export const getStnStateShmetro = (
     direction: 'l' | 'r'
 ): { [stnId: string]: -1 | 0 | 1 } => {
     const initialStates = getStnState(currentId, routes, direction);
-    const parallelBranchStations = _getParallelBranchStations(currentId, routes, stnList, direction);
+    const parallelBranchStations = getParallelBranchStations(currentId, routes, stnList, direction);
 
     return Object.keys(initialStates).reduce(
         (acc, stnId) => ({ ...acc, [stnId]: parallelBranchStations.has(stnId) ? 1 : initialStates[stnId] }),
