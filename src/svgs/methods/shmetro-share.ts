@@ -1,11 +1,7 @@
 import { StationDict } from '../../constants/constants';
 import { getStnState } from './share';
 
-/**
- * Stations between the split and merge points on the parallel sibling branch
- * that should be additionally colored on the SHMetro railmap.
- */
-const getParallelBranchStations = (
+const _getParallelBranchStations = (
     currentId: string,
     routes: string[][],
     stnList: StationDict,
@@ -16,7 +12,6 @@ const getParallelBranchStations = (
     }
 
     const currentRoute = routes.find(route => route.includes(currentId))!;
-
     const currentIdx = currentRoute.indexOf(currentId);
 
     let splitId = '';
@@ -65,7 +60,7 @@ export const getStnStateShmetro = (
     direction: 'l' | 'r'
 ): { [stnId: string]: -1 | 0 | 1 } => {
     const initialStates = getStnState(currentId, routes, direction);
-    const parallelBranchStations = getParallelBranchStations(currentId, routes, stnList, direction);
+    const parallelBranchStations = _getParallelBranchStations(currentId, routes, stnList, direction);
 
     return Object.keys(initialStates).reduce(
         (acc, stnId) => ({ ...acc, [stnId]: parallelBranchStations.has(stnId) ? 1 : initialStates[stnId] }),
